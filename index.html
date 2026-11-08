@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Log actions agreed in meetings with an owner and due date, grouped by owner with open, done and overdue counts.">
+<meta name="description" content="Log actions agreed in meetings with an owner and due date, grouped by owner with open, done and overdue counts. Live data shared by the whole team.">
 <title>Action Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -111,6 +111,7 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
 /* Notices */
 .notice { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 14px 18px; border: 1px dashed var(--line); border-radius: 16px; color: var(--muted); font-size: 16px; }
 .notice span { flex: 1 1 260px; min-width: 0; }
+.notice.error { border-style: solid; border-color: var(--danger-line); background: var(--danger-bg); color: var(--danger); font-weight: 600; }
 .link-btn { background: none; border: 0; padding: 8px 4px; font-weight: 700; font-size: 16px; color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 
 /* Owner cards */
@@ -139,7 +140,6 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
 .due.today { color: var(--accent); }
 .due.late { background: var(--card); color: var(--danger); border: 1px solid var(--danger-line); }
 .item.done .due { background: transparent; padding-left: 0; font-weight: 500; color: var(--done); }
-.tag { margin-left: 8px; padding: 1px 8px; border-radius: 6px; background: var(--chip); color: var(--muted); font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; vertical-align: 2px; }
 
 .row-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
 .ghost { background: none; border: 0; border-radius: 8px; padding: 8px 10px; font-size: 15px; font-weight: 600; color: var(--muted); cursor: pointer; }
@@ -202,22 +202,27 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
     </form>
   </section>
 
-  <div class="notice" id="example-note" hidden>
-    <span>These are example actions so you can see how the tracker works.</span>
-    <button class="link-btn" type="button" id="clear-examples">Clear examples</button>
+  <div class="notice error" id="status" role="alert" hidden>
+    <span id="status-text"></span>
+    <button class="link-btn" type="button" id="retry">Try again</button>
   </div>
 
   <section class="groups" id="groups" aria-label="Actions by owner"></section>
 
-  <p class="foot" id="store-note">Saved in this browser only. Clearing your browser data will remove these actions.</p>
+  <p class="foot" id="store-note">Connecting to live data…</p>
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
 <script>
 (function () {
-  var KEY = 'action-tracker-v1';
+  var SUPABASE_URL = 'https://hpljkvfhnnvjvpfbmukg.supabase.co';
+  var SUPABASE_KEY = 'sb_publishable_HHMk0RRE0LKGbf1Yw9sxyw_Ff8MCfhY';
   var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  var saveFailed = false;
+
+  var items = [];
+  var loadState = 'loading'; // loading | ready | error
+  var live = false;
   var confirmId = null, confirmTimer = null, focusKey = null;
 
   function pad(n) { return String(n).padStart(2, '0'); }
@@ -226,47 +231,13 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
   function parse(s) { var p = s.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
   function fmt(s) { var d = parse(s); return d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear(); }
   function daysBetween(a, b) { return Math.round((parse(b) - parse(a)) / 86400000); }
-  function offset(n) { var d = new Date(); d.setDate(d.getDate() + n); return iso(d); }
-  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
   function $(id) { return document.getElementById(id); }
+  function errText(e) { return (e && e.message) ? e.message : 'Check your connection and try again.'; }
 
-  function seed() {
-    var mk = function (text, owner, days, done) {
-      return { id: uid(), text: text, owner: owner, due: offset(days), done: !!done, example: true };
-    };
-    return [
-      mk('Send revised pricing to the Harbour account', 'Daniel', -3),
-      mk('Book a venue for the December offsite', 'Daniel', 5),
-      mk('Share the Q3 meeting notes with the wider team', 'Daniel', -6, true),
-      mk('Confirm owners for each launch checklist item', 'Mei Ling', -1),
-      mk('Draft the onboarding FAQ', 'Mei Ling', 9),
-      mk('Update the risk register', 'Sofia', 2),
-      mk('Review the vendor contract renewal', 'Sofia', 0),
-      mk('Set up the weekly stand-up invite', 'Sofia', -4, true)
-    ];
-  }
-
-  function load() {
-    try {
-      var raw = localStorage.getItem(KEY);
-      if (raw === null) return seed();
-      var p = JSON.parse(raw);
-      return Array.isArray(p.items) ? p.items : [];
-    } catch (e) {
-      saveFailed = true;
-      return seed();
-    }
-  }
-
-  var items = load();
-
-  function save() {
-    try {
-      localStorage.setItem(KEY, JSON.stringify({ items: items }));
-      saveFailed = false;
-    } catch (e) {
-      saveFailed = true;
-    }
+  function addKid(parent, kid) {
+    if (kid == null || kid === false) return;
+    if (Array.isArray(kid)) { kid.forEach(function (k) { addKid(parent, k); }); return; }
+    parent.append(kid.nodeType ? kid : document.createTextNode(kid));
   }
 
   function h(tag, attrs) {
@@ -280,28 +251,73 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
         else e.setAttribute(k, v === true ? '' : v);
       });
     }
-    for (var i = 2; i < arguments.length; i++) {
-      var kid = arguments[i];
-      if (kid == null || kid === false) continue;
-      e.append(kid.nodeType ? kid : document.createTextNode(kid));
-    }
+    for (var i = 2; i < arguments.length; i++) addKid(e, arguments[i]);
     return e;
   }
 
-  function dueInfo(it, t) {
-    if (it.done) return { cls: '', text: 'Due ' + fmt(it.due) };
-    var late = daysBetween(it.due, t);
-    if (late > 0) return { cls: 'late', text: 'Overdue by ' + late + (late === 1 ? ' day' : ' days') + ' · ' + fmt(it.due) };
-    if (late === 0) return { cls: 'today', text: 'Due today · ' + fmt(it.due) };
-    return { cls: '', text: 'Due ' + fmt(it.due) };
+  /* Status banner and connection note */
+  function setError(msg) {
+    $('status').hidden = !msg;
+    $('status-text').textContent = msg || '';
+  }
+  function renderNote() {
+    var note = $('store-note');
+    note.className = 'foot' + (loadState === 'error' ? ' warn' : '');
+    if (loadState === 'loading') note.textContent = 'Connecting to live data…';
+    else if (loadState === 'error') note.textContent = 'Not connected. Changes cannot be saved until the connection returns.';
+    else if (live) note.textContent = 'Live. Everyone with the link sees the same list, and changes appear straight away.';
+    else note.textContent = 'Reconnecting to live updates… your list is shown as of the last refresh.';
   }
 
-  function toggle(id) {
+  /* Supabase */
+  if (!window.supabase || !window.supabase.createClient) {
+    loadState = 'error';
+    setError('Could not load the Supabase library. Check your connection and reload the page.');
+    $('retry').hidden = true;
+    renderNote();
+    render();
+    return;
+  }
+  var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  function upsert(row) {
+    var i = items.findIndex(function (x) { return x.id === row.id; });
+    if (i >= 0) items[i] = row; else items.push(row);
+  }
+
+  async function fetchAll() {
+    try {
+      var r = await sb.from('actions').select('id,text,owner,due,done,created_at').order('due').order('created_at');
+      if (r.error) throw r.error;
+      items = r.data || [];
+      loadState = 'ready';
+      setError('');
+    } catch (e) {
+      loadState = items.length ? 'ready' : 'error';
+      setError('Could not load actions. ' + errText(e));
+    }
+    renderNote();
+    render();
+  }
+
+  async function toggle(id) {
     var it = items.find(function (x) { return x.id === id; });
     if (!it) return;
-    it.done = !it.done;
+    var next = !it.done;
+    it.done = next;
     focusKey = 'cb:' + id;
-    save(); render();
+    render();
+    var r = await sb.from('actions').update({ done: next }).eq('id', id).select('id');
+    if (r.error) {
+      it.done = !next;
+      render();
+      setError('Could not update that action. ' + errText(r.error));
+    } else if (!r.data || !r.data.length) {
+      await fetchAll();
+      setError('That action was removed by someone else, so the list has been refreshed.');
+    } else {
+      setError('');
+    }
   }
 
   function askDelete(id) {
@@ -316,10 +332,27 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
     focusKey = 'del:' + id;
     render();
   }
-  function doDelete(id) {
-    items = items.filter(function (x) { return x.id !== id; });
+  async function doDelete(id) {
     confirmId = null; clearTimeout(confirmTimer);
-    save(); render();
+    var prev = items;
+    items = items.filter(function (x) { return x.id !== id; });
+    render();
+    var r = await sb.from('actions').delete().eq('id', id);
+    if (r.error) {
+      items = prev;
+      render();
+      setError('Could not delete that action. ' + errText(r.error));
+    } else {
+      setError('');
+    }
+  }
+
+  function dueInfo(it, t) {
+    if (it.done) return { cls: '', text: 'Due ' + fmt(it.due) };
+    var late = daysBetween(it.due, t);
+    if (late > 0) return { cls: 'late', text: 'Overdue by ' + late + (late === 1 ? ' day' : ' days') + ' · ' + fmt(it.due) };
+    if (late === 0) return { cls: 'today', text: 'Due today · ' + fmt(it.due) };
+    return { cls: '', text: 'Due ' + fmt(it.due) };
   }
 
   function buildItem(it, t) {
@@ -328,11 +361,12 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
     var cb = h('input', {
       type: 'checkbox', class: 'check', id: 'cb-' + it.id, 'data-focus': 'cb:' + it.id,
       'aria-label': (it.done ? 'Mark as not done: ' : 'Mark as done: ') + it.text,
-      checked: it.done, onchange: function () { toggle(it.id); }
+      onchange: function () { toggle(it.id); }
     });
     cb.checked = it.done;
-    var txt = h('div', { class: 'txt' }, it.text, it.example ? h('span', { class: 'tag' }, 'Example') : null);
-    var body = h('div', { class: 'body' }, txt, h('span', { class: 'due ' + info.cls }, info.text));
+    var body = h('div', { class: 'body' },
+      h('div', { class: 'txt' }, it.text),
+      h('span', { class: 'due ' + info.cls }, info.text));
     var actions = h('div', { class: 'row-actions' });
     if (confirmId === it.id) {
       actions.append(
@@ -346,6 +380,10 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
   }
 
   function render() {
+    var active = document.activeElement;
+    var keepFocus = focusKey || (active && active.getAttribute ? active.getAttribute('data-focus') : null);
+    focusKey = null;
+
     var t = today();
     var open = items.filter(function (i) { return !i.done; });
     var overdue = open.filter(function (i) { return i.due < t; }).length;
@@ -353,13 +391,6 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
     $('n-done').textContent = items.length - open.length;
     $('n-overdue').textContent = overdue;
     $('stat-overdue').classList.toggle('alert', overdue > 0);
-    $('example-note').hidden = !items.some(function (i) { return i.example; });
-
-    var note = $('store-note');
-    note.className = 'foot' + (saveFailed ? ' warn' : '');
-    note.textContent = saveFailed
-      ? 'This browser blocked saving, so your actions will be lost when you close the page.'
-      : 'Saved in this browser only. Clearing your browser data will remove these actions.';
 
     var groups = new Map();
     items.forEach(function (it) {
@@ -375,7 +406,9 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
 
     var host = $('groups');
     host.textContent = '';
-    if (!sorted.length) {
+    if (loadState === 'loading') {
+      host.append(h('div', { class: 'empty' }, h('strong', null, 'Loading actions'), 'Fetching the latest list.'));
+    } else if (!sorted.length && loadState === 'ready') {
       host.append(h('div', { class: 'empty' }, h('strong', null, 'No actions yet'), 'Add the first action above, with an owner and a due date.'));
     }
     sorted.forEach(function (g) {
@@ -391,18 +424,16 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
         nLate ? h('span', { class: 'pill' }, nLate + ' overdue') : null,
         h('span', null, nOpen + ' open · ' + nDone + ' done')
       );
-      var card = h('article', { class: 'card' },
+      host.append(h('article', { class: 'card' },
         h('div', { class: 'owner-head' }, h('h2', null, g.name), meta),
         h('div', { class: 'bar', 'aria-hidden': 'true' }, h('i', { style: 'width:' + pct + '%' })),
         h('ul', { class: 'list' }, g.list.map(function (it) { return buildItem(it, t); }))
-      );
-      host.append(card);
+      ));
     });
 
-    if (focusKey) {
-      var el = document.querySelector('[data-focus="' + focusKey + '"]');
+    if (keepFocus) {
+      var el = document.querySelector('[data-focus="' + keepFocus + '"]');
       if (el) el.focus();
-      focusKey = null;
     }
   }
 
@@ -414,7 +445,7 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
     if (msg) input.setAttribute('aria-invalid', 'true'); else input.removeAttribute('aria-invalid');
   }
 
-  $('add-form').addEventListener('submit', function (ev) {
+  $('add-form').addEventListener('submit', async function (ev) {
     ev.preventDefault();
     var text = $('f-text').value.trim();
     var owner = $('f-owner').value.trim().replace(/\s+/g, ' ');
@@ -427,8 +458,19 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
     if (!due) { $('f-due').focus(); return; }
     var existing = items.find(function (i) { return i.owner.toLowerCase() === owner.toLowerCase(); });
     if (existing) owner = existing.owner;
-    items.push({ id: uid(), text: text, owner: owner, due: due, done: false });
-    save();
+
+    var btn = $('add-btn');
+    btn.disabled = true;
+    btn.textContent = 'Adding…';
+    var r = await sb.from('actions').insert({ text: text, owner: owner, due: due }).select('id,text,owner,due,done,created_at').single();
+    btn.disabled = false;
+    btn.textContent = 'Add action';
+    if (r.error) {
+      setError('Could not add the action. ' + errText(r.error));
+      return;
+    }
+    setError('');
+    upsert(r.data);
     $('add-form').reset();
     ['text', 'owner', 'due'].forEach(function (f) { showErr(f, ''); });
     render();
@@ -437,26 +479,41 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
   ['text', 'owner', 'due'].forEach(function (f) {
     $('f-' + f).addEventListener('input', function () { showErr(f, ''); });
   });
+  $('retry').addEventListener('click', function () { loadState = items.length ? 'ready' : 'loading'; renderNote(); render(); fetchAll(); });
 
-  $('clear-examples').addEventListener('click', function () {
-    items = items.filter(function (i) { return !i.example; });
-    save(); render();
-  });
-
-  var now = new Date();
-  $('today-label').textContent = DAYS[now.getDay()] + ' ' + fmt(today());
-
-  /* Keep overdue highlighting right if the page stays open past midnight */
+  /* Date header, and a refresh of overdue highlighting if the page stays open past midnight */
+  function setDateLabel() { var n = new Date(); $('today-label').textContent = DAYS[n.getDay()] + ' ' + fmt(iso(n)); }
+  setDateLabel();
   var shownDay = today();
   setInterval(function () {
     if (today() === shownDay) return;
     shownDay = today();
-    var n = new Date();
-    $('today-label').textContent = DAYS[n.getDay()] + ' ' + fmt(shownDay);
+    setDateLabel();
     render();
   }, 60000);
 
+  /* Realtime: keep every open page in step with the table */
+  var firstSub = true;
+  sb.channel('actions-live')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'actions' }, function (p) {
+      if (p.eventType === 'DELETE') {
+        var id = p.old && p.old.id;
+        items = items.filter(function (x) { return x.id !== id; });
+      } else if (p.new) {
+        upsert(p.new);
+      }
+      render();
+    })
+    .subscribe(function (status) {
+      live = status === 'SUBSCRIBED';
+      renderNote();
+      if (live && !firstSub) fetchAll(); // catch anything missed while disconnected
+      if (live) firstSub = false;
+    });
+
+  renderNote();
   render();
+  fetchAll();
 })();
 </script>
 </body>

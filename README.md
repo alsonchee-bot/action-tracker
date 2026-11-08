@@ -2,11 +2,15 @@
 
 A single-page meeting action tracker. Add an action with an owner and a due date, tick actions off, and see open, done and overdue counts at a glance. Overdue actions are highlighted in red.
 
-Data is saved in the browser's local storage, so each person sees their own list on their own device.
+Data is stored in a Supabase table (`public.actions`) and updates appear on every open page in real time.
+
+## Access
+
+The table is open by design: anyone with the site link can read, add, tick and delete actions. The publishable key in `index.html` is meant to be public, so access is controlled by the row-level security policies in `supabase/schema.sql`. If the link needs to be private, switch to Supabase Auth and tighten those policies.
 
 ## Run locally
 
-Open `index.html` in a browser. There is no build step and no dependencies.
+Open `index.html` in a browser. There is no build step. The page loads `supabase-js` from a CDN.
 
 ## Deploy to Vercel
 
@@ -16,3 +20,7 @@ Open `index.html` in a browser. There is no build step and no dependencies.
 4. Select **Deploy**.
 
 `vercel.json` adds basic security headers and clean URLs.
+
+## Database
+
+`supabase/schema.sql` holds the table, row-level security policies and realtime setting. It has already been applied to the project used by `index.html`.
