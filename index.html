@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Log actions agreed in meetings with an owner and due date, grouped by owner with open, done and overdue counts.">
+<title>Action Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: one centred column. Stat strip, add-action card, then one card per owner. */
+:root {
+  color-scheme: light;
+  --bg: #EDEFEE;
+  --card: #FAFBFA;
+  --ink: #1F2528;
+  --muted: #5F696D;
+  --line: #DCE0DF;
+  --chip: #E8ECEB;
+  --accent: #CC4F08;
+  --on-accent: #FFFFFF;
+  --danger: #B42318;
+  --danger-bg: #FBE9E7;
+  --danger-line: #F1C4BE;
+  --done: #8A9396;
+  --font-display: 'Bricolage Grotesque', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-body: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141819;
+    --card: #1D2224;
+    --ink: #E9EDEC;
+    --muted: #9AA4A7;
+    --line: #2E3639;
+    --chip: #2A3235;
+    --accent: #F4863B;
+    --on-accent: #1A0E05;
+    --danger: #FF9087;
+    --danger-bg: #3A2220;
+    --danger-line: #5C3430;
+    --done: #6F797C;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141819;
+  --card: #1D2224;
+  --ink: #E9EDEC;
+  --muted: #9AA4A7;
+  --line: #2E3639;
+  --chip: #2A3235;
+  --accent: #F4863B;
+  --on-accent: #1A0E05;
+  --danger: #FF9087;
+  --danger-bg: #3A2220;
+  --danger-line: #5C3430;
+  --done: #6F797C;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 18px;
+  line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 56px;
+}
+.wrap { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* Header */
+.eyebrow { margin: 0 0 6px; font-size: 15px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46px); line-height: 1.05; letter-spacing: -0.02em; font-weight: 700; text-wrap: balance; }
+.lede { margin: 10px 0 0; color: var(--muted); max-width: 52ch; }
+
+/* Stats */
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.stat { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px 16px; min-width: 0; }
+.stat .label { display: block; font-size: 14px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.stat .num { display: block; margin-top: 4px; font-family: var(--font-display); font-size: clamp(36px, 10vw, 52px); line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stat.alert { background: var(--danger-bg); border-color: var(--danger-line); }
+.stat.alert .label, .stat.alert .num { color: var(--danger); }
+
+/* Cards */
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; min-width: 0; }
+.card h2 { margin: 0; font-family: var(--font-display); font-size: 24px; line-height: 1.15; font-weight: 700; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+
+/* Add form */
+.form-grid { display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 14px; margin-top: 16px; }
+.field { display: flex; flex-direction: column; min-width: 0; }
+.field.full { grid-column: 1 / -1; }
+.field label { font-size: 15px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+.field input { width: 100%; height: 54px; padding: 0 14px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--bg); font-size: 18px; }
+.field input::placeholder { color: var(--muted); opacity: 0.8; }
+.field input[aria-invalid="true"] { border-color: var(--danger); }
+.err { margin: 6px 0 0; font-size: 15px; font-weight: 500; color: var(--danger); }
+.actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
+.btn { height: 54px; padding: 0 28px; border: 0; border-radius: 12px; background: var(--accent); color: var(--on-accent); font-weight: 700; font-size: 18px; cursor: pointer; }
+.btn:hover { filter: brightness(0.94); }
+.btn:active { transform: translateY(1px); }
+
+/* Notices */
+.notice { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 14px 18px; border: 1px dashed var(--line); border-radius: 16px; color: var(--muted); font-size: 16px; }
+.notice span { flex: 1 1 260px; min-width: 0; }
+.link-btn { background: none; border: 0; padding: 8px 4px; font-weight: 700; font-size: 16px; color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+
+/* Owner cards */
+.groups { display: flex; flex-direction: column; gap: 16px; }
+.owner-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 14px; }
+.owner-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 16px; color: var(--muted); }
+.pill { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px; font-size: 15px; font-weight: 700; background: var(--danger-bg); color: var(--danger); }
+.bar { height: 6px; margin-top: 12px; border-radius: 999px; background: var(--chip); overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+
+.list { list-style: none; margin: 14px 0 0; padding: 0; }
+.item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: start; padding: 14px 10px; border-radius: 12px; }
+.item + .item { border-top: 1px solid var(--line); border-top-left-radius: 0; border-top-right-radius: 0; }
+.item.late { background: var(--danger-bg); border-top-color: transparent; }
+.item.late + .item { border-top-color: transparent; }
+
+.check { appearance: none; -webkit-appearance: none; width: 30px; height: 30px; margin: 1px 0 0; border: 2px solid var(--muted); border-radius: 9px; background: transparent; cursor: pointer; display: grid; place-content: center; flex: none; }
+.check:hover { border-color: var(--accent); }
+.check:checked { background-color: var(--accent); border-color: var(--accent); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E"); background-size: 20px; background-repeat: no-repeat; background-position: center; }
+.item.late .check:not(:checked) { border-color: var(--danger); }
+
+.body { min-width: 0; }
+.txt { font-size: 19px; font-weight: 500; overflow-wrap: anywhere; }
+.item.done .txt { color: var(--done); text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.due { display: inline-block; margin-top: 6px; padding: 2px 10px; border-radius: 999px; background: var(--chip); color: var(--muted); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.due.today { color: var(--accent); }
+.due.late { background: var(--card); color: var(--danger); border: 1px solid var(--danger-line); }
+.item.done .due { background: transparent; padding-left: 0; font-weight: 500; color: var(--done); }
+.tag { margin-left: 8px; padding: 1px 8px; border-radius: 6px; background: var(--chip); color: var(--muted); font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; vertical-align: 2px; }
+
+.row-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.ghost { background: none; border: 0; border-radius: 8px; padding: 8px 10px; font-size: 15px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.ghost:hover { color: var(--danger); background: var(--chip); }
+.ghost.solid { background: var(--danger); color: var(--card); }
+.ghost.solid:hover { color: var(--card); filter: brightness(0.93); }
+
+.empty { text-align: center; padding: 36px 20px; color: var(--muted); border: 1.5px dashed var(--line); border-radius: 16px; }
+.empty strong { display: block; font-family: var(--font-display); font-size: 22px; color: var(--ink); margin-bottom: 4px; }
+
+.foot { margin: 4px 0 0; font-size: 15px; color: var(--muted); }
+.foot.warn { color: var(--danger); font-weight: 600; }
+
+@media (max-width: 520px) {
+  .card { padding: 16px; }
+  .form-grid { grid-template-columns: minmax(0, 1fr); }
+  .actions .btn { width: 100%; }
+  .item { grid-template-columns: auto minmax(0, 1fr); }
+  .row-actions { grid-column: 2; justify-content: flex-start; margin-top: -4px; }
+  .stat { padding: 12px 12px 14px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <p class="eyebrow" id="today-label"></p>
+    <h1>Action Tracker</h1>
+    <p class="lede">Every action agreed in a meeting, with a named owner and a due date, so nothing gets forgotten.</p>
+  </header>
+
+  <section class="stats" aria-label="Summary">
+    <div class="stat"><span class="label">Open</span><span class="num" id="n-open">0</span></div>
+    <div class="stat"><span class="label">Done</span><span class="num" id="n-done">0</span></div>
+    <div class="stat" id="stat-overdue"><span class="label">Overdue</span><span class="num" id="n-overdue">0</span></div>
+  </section>
+
+  <section class="card" aria-labelledby="add-title">
+    <h2 id="add-title">Add an action</h2>
+    <form id="add-form" class="form-grid" novalidate>
+      <div class="field full">
+        <label for="f-text">What needs doing?</label>
+        <input id="f-text" name="text" type="text" maxlength="200" autocomplete="off" placeholder="e.g. Send the revised quote to the client" aria-describedby="e-text">
+        <p class="err" id="e-text" hidden></p>
+      </div>
+      <div class="field">
+        <label for="f-owner">Owner</label>
+        <input id="f-owner" name="owner" type="text" maxlength="60" list="owners" autocomplete="off" placeholder="Who is responsible?" aria-describedby="e-owner">
+        <datalist id="owners"></datalist>
+        <p class="err" id="e-owner" hidden></p>
+      </div>
+      <div class="field">
+        <label for="f-due">Due date</label>
+        <input id="f-due" name="due" type="date" aria-describedby="e-due">
+        <p class="err" id="e-due" hidden></p>
+      </div>
+      <div class="actions"><button class="btn" type="submit" id="add-btn">Add action</button></div>
+    </form>
+  </section>
+
+  <div class="notice" id="example-note" hidden>
+    <span>These are example actions so you can see how the tracker works.</span>
+    <button class="link-btn" type="button" id="clear-examples">Clear examples</button>
+  </div>
+
+  <section class="groups" id="groups" aria-label="Actions by owner"></section>
+
+  <p class="foot" id="store-note">Saved in this browser only. Clearing your browser data will remove these actions.</p>
+</main>
+
+<script>
+(function () {
+  var KEY = 'action-tracker-v1';
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var saveFailed = false;
+  var confirmId = null, confirmTimer = null, focusKey = null;
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function iso(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function today() { return iso(new Date()); }
+  function parse(s) { var p = s.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+  function fmt(s) { var d = parse(s); return d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear(); }
+  function daysBetween(a, b) { return Math.round((parse(b) - parse(a)) / 86400000); }
+  function offset(n) { var d = new Date(); d.setDate(d.getDate() + n); return iso(d); }
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function $(id) { return document.getElementById(id); }
+
+  function seed() {
+    var mk = function (text, owner, days, done) {
+      return { id: uid(), text: text, owner: owner, due: offset(days), done: !!done, example: true };
+    };
+    return [
+      mk('Send revised pricing to the Harbour account', 'Daniel', -3),
+      mk('Book a venue for the December offsite', 'Daniel', 5),
+      mk('Share the Q3 meeting notes with the wider team', 'Daniel', -6, true),
+      mk('Confirm owners for each launch checklist item', 'Mei Ling', -1),
+      mk('Draft the onboarding FAQ', 'Mei Ling', 9),
+      mk('Update the risk register', 'Sofia', 2),
+      mk('Review the vendor contract renewal', 'Sofia', 0),
+      mk('Set up the weekly stand-up invite', 'Sofia', -4, true)
+    ];
+  }
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw === null) return seed();
+      var p = JSON.parse(raw);
+      return Array.isArray(p.items) ? p.items : [];
+    } catch (e) {
+      saveFailed = true;
+      return seed();
+    }
+  }
+
+  var items = load();
+
+  function save() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify({ items: items }));
+      saveFailed = false;
+    } catch (e) {
+      saveFailed = true;
+    }
+  }
+
+  function h(tag, attrs) {
+    var e = document.createElement(tag);
+    if (attrs) {
+      Object.keys(attrs).forEach(function (k) {
+        var v = attrs[k];
+        if (v === false || v == null) return;
+        if (k === 'class') e.className = v;
+        else if (k.slice(0, 2) === 'on') e.addEventListener(k.slice(2), v);
+        else e.setAttribute(k, v === true ? '' : v);
+      });
+    }
+    for (var i = 2; i < arguments.length; i++) {
+      var kid = arguments[i];
+      if (kid == null || kid === false) continue;
+      e.append(kid.nodeType ? kid : document.createTextNode(kid));
+    }
+    return e;
+  }
+
+  function dueInfo(it, t) {
+    if (it.done) return { cls: '', text: 'Due ' + fmt(it.due) };
+    var late = daysBetween(it.due, t);
+    if (late > 0) return { cls: 'late', text: 'Overdue by ' + late + (late === 1 ? ' day' : ' days') + ' · ' + fmt(it.due) };
+    if (late === 0) return { cls: 'today', text: 'Due today · ' + fmt(it.due) };
+    return { cls: '', text: 'Due ' + fmt(it.due) };
+  }
+
+  function toggle(id) {
+    var it = items.find(function (x) { return x.id === id; });
+    if (!it) return;
+    it.done = !it.done;
+    focusKey = 'cb:' + id;
+    save(); render();
+  }
+
+  function askDelete(id) {
+    confirmId = id;
+    focusKey = 'del:' + id;
+    clearTimeout(confirmTimer);
+    confirmTimer = setTimeout(function () { confirmId = null; render(); }, 5000);
+    render();
+  }
+  function cancelDelete(id) {
+    confirmId = null; clearTimeout(confirmTimer);
+    focusKey = 'del:' + id;
+    render();
+  }
+  function doDelete(id) {
+    items = items.filter(function (x) { return x.id !== id; });
+    confirmId = null; clearTimeout(confirmTimer);
+    save(); render();
+  }
+
+  function buildItem(it, t) {
+    var info = dueInfo(it, t);
+    var late = !it.done && info.cls === 'late';
+    var cb = h('input', {
+      type: 'checkbox', class: 'check', id: 'cb-' + it.id, 'data-focus': 'cb:' + it.id,
+      'aria-label': (it.done ? 'Mark as not done: ' : 'Mark as done: ') + it.text,
+      checked: it.done, onchange: function () { toggle(it.id); }
+    });
+    cb.checked = it.done;
+    var txt = h('div', { class: 'txt' }, it.text, it.example ? h('span', { class: 'tag' }, 'Example') : null);
+    var body = h('div', { class: 'body' }, txt, h('span', { class: 'due ' + info.cls }, info.text));
+    var actions = h('div', { class: 'row-actions' });
+    if (confirmId === it.id) {
+      actions.append(
+        h('button', { type: 'button', class: 'ghost solid', 'data-focus': 'del:' + it.id, onclick: function () { doDelete(it.id); } }, 'Delete'),
+        h('button', { type: 'button', class: 'ghost', onclick: function () { cancelDelete(it.id); } }, 'Keep')
+      );
+    } else {
+      actions.append(h('button', { type: 'button', class: 'ghost', 'data-focus': 'del:' + it.id, 'aria-label': 'Delete: ' + it.text, onclick: function () { askDelete(it.id); } }, 'Delete'));
+    }
+    return h('li', { class: 'item' + (it.done ? ' done' : '') + (late ? ' late' : '') }, cb, body, actions);
+  }
+
+  function render() {
+    var t = today();
+    var open = items.filter(function (i) { return !i.done; });
+    var overdue = open.filter(function (i) { return i.due < t; }).length;
+    $('n-open').textContent = open.length;
+    $('n-done').textContent = items.length - open.length;
+    $('n-overdue').textContent = overdue;
+    $('stat-overdue').classList.toggle('alert', overdue > 0);
+    $('example-note').hidden = !items.some(function (i) { return i.example; });
+
+    var note = $('store-note');
+    note.className = 'foot' + (saveFailed ? ' warn' : '');
+    note.textContent = saveFailed
+      ? 'This browser blocked saving, so your actions will be lost when you close the page.'
+      : 'Saved in this browser only. Clearing your browser data will remove these actions.';
+
+    var groups = new Map();
+    items.forEach(function (it) {
+      var k = it.owner.toLowerCase();
+      if (!groups.has(k)) groups.set(k, { name: it.owner, list: [] });
+      groups.get(k).list.push(it);
+    });
+    var sorted = Array.from(groups.values()).sort(function (a, b) { return a.name.localeCompare(b.name, 'en-GB'); });
+
+    var dl = $('owners');
+    dl.textContent = '';
+    sorted.forEach(function (g) { dl.append(h('option', { value: g.name })); });
+
+    var host = $('groups');
+    host.textContent = '';
+    if (!sorted.length) {
+      host.append(h('div', { class: 'empty' }, h('strong', null, 'No actions yet'), 'Add the first action above, with an owner and a due date.'));
+    }
+    sorted.forEach(function (g) {
+      g.list.sort(function (a, b) {
+        if (a.done !== b.done) return a.done ? 1 : -1;
+        return a.due < b.due ? -1 : a.due > b.due ? 1 : 0;
+      });
+      var nOpen = g.list.filter(function (i) { return !i.done; }).length;
+      var nDone = g.list.length - nOpen;
+      var nLate = g.list.filter(function (i) { return !i.done && i.due < t; }).length;
+      var pct = Math.round((nDone / g.list.length) * 100);
+      var meta = h('div', { class: 'owner-meta' },
+        nLate ? h('span', { class: 'pill' }, nLate + ' overdue') : null,
+        h('span', null, nOpen + ' open · ' + nDone + ' done')
+      );
+      var card = h('article', { class: 'card' },
+        h('div', { class: 'owner-head' }, h('h2', null, g.name), meta),
+        h('div', { class: 'bar', 'aria-hidden': 'true' }, h('i', { style: 'width:' + pct + '%' })),
+        h('ul', { class: 'list' }, g.list.map(function (it) { return buildItem(it, t); }))
+      );
+      host.append(card);
+    });
+
+    if (focusKey) {
+      var el = document.querySelector('[data-focus="' + focusKey + '"]');
+      if (el) el.focus();
+      focusKey = null;
+    }
+  }
+
+  /* Form */
+  function showErr(field, msg) {
+    var input = $('f-' + field), err = $('e-' + field);
+    err.hidden = !msg;
+    err.textContent = msg || '';
+    if (msg) input.setAttribute('aria-invalid', 'true'); else input.removeAttribute('aria-invalid');
+  }
+
+  $('add-form').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var text = $('f-text').value.trim();
+    var owner = $('f-owner').value.trim().replace(/\s+/g, ' ');
+    var due = $('f-due').value;
+    showErr('text', text ? '' : 'Describe the action.');
+    showErr('owner', owner ? '' : 'Choose an owner. Every action needs one person responsible.');
+    showErr('due', due ? '' : 'Pick a due date.');
+    if (!text) { $('f-text').focus(); return; }
+    if (!owner) { $('f-owner').focus(); return; }
+    if (!due) { $('f-due').focus(); return; }
+    var existing = items.find(function (i) { return i.owner.toLowerCase() === owner.toLowerCase(); });
+    if (existing) owner = existing.owner;
+    items.push({ id: uid(), text: text, owner: owner, due: due, done: false });
+    save();
+    $('add-form').reset();
+    ['text', 'owner', 'due'].forEach(function (f) { showErr(f, ''); });
+    render();
+    $('f-text').focus();
+  });
+  ['text', 'owner', 'due'].forEach(function (f) {
+    $('f-' + f).addEventListener('input', function () { showErr(f, ''); });
+  });
+
+  $('clear-examples').addEventListener('click', function () {
+    items = items.filter(function (i) { return !i.example; });
+    save(); render();
+  });
+
+  var now = new Date();
+  $('today-label').textContent = DAYS[now.getDay()] + ' ' + fmt(today());
+
+  /* Keep overdue highlighting right if the page stays open past midnight */
+  var shownDay = today();
+  setInterval(function () {
+    if (today() === shownDay) return;
+    shownDay = today();
+    var n = new Date();
+    $('today-label').textContent = DAYS[n.getDay()] + ' ' + fmt(shownDay);
+    render();
+  }, 60000);
+
+  render();
+})();
+</script>
+</body>
+</html>
