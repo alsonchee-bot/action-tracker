@@ -3,13 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Log actions agreed in meetings with an owner and due date, grouped by owner with open, done and overdue counts. Live data shared by the whole team.">
+<meta name="description" content="Log actions agreed in meetings with an owner and due date, grouped by owner with open, done and overdue counts. Sign in to see the team's live list.">
 <title>Action Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-/* Layout: one centred column. Stat strip, add-action card, then one card per owner. */
+/* Layout: one centred column. Header, then either the sign-in card or the signed-in app
+   (user bar, then one of three views: actions, users, account). */
 :root {
   color-scheme: light;
   --bg: #EDEFEE;
@@ -61,6 +62,7 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
@@ -74,13 +76,23 @@ body {
   padding-block: 32px 56px;
 }
 .wrap { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
-button, input { font: inherit; color: inherit; }
+.stack { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+button, input, select { font: inherit; color: inherit; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
 /* Header */
 .eyebrow { margin: 0 0 6px; font-size: 15px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46px); line-height: 1.05; letter-spacing: -0.02em; font-weight: 700; text-wrap: balance; }
 .lede { margin: 10px 0 0; color: var(--muted); max-width: 52ch; }
+
+/* User bar */
+.userbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 16px; }
+.who { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 17px; color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
+.who strong { color: var(--ink); font-weight: 700; }
+.nav { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.tab { height: 44px; padding: 0 18px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--card); color: var(--ink); font-size: 16px; font-weight: 600; cursor: pointer; }
+.tab:hover { border-color: var(--muted); }
+.tab[aria-current="page"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
 
 /* Stats */
 .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
@@ -90,28 +102,35 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
 .stat.alert { background: var(--danger-bg); border-color: var(--danger-line); }
 .stat.alert .label, .stat.alert .num { color: var(--danger); }
 
-/* Cards */
+/* Cards and forms */
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; min-width: 0; }
 .card h2 { margin: 0; font-family: var(--font-display); font-size: 24px; line-height: 1.15; font-weight: 700; letter-spacing: -0.01em; overflow-wrap: anywhere; }
-
-/* Add form */
+.hint { margin: 6px 0 0; color: var(--muted); font-size: 16px; }
+.login { width: 100%; max-width: 480px; margin: 4px auto 0; }
 .form-grid { display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 14px; margin-top: 16px; }
+.form-grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.form-grid.one { grid-template-columns: minmax(0, 1fr); }
 .field { display: flex; flex-direction: column; min-width: 0; }
 .field.full { grid-column: 1 / -1; }
-.field label { font-size: 15px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
-.field input { width: 100%; height: 54px; padding: 0 14px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--bg); font-size: 18px; }
-.field input::placeholder { color: var(--muted); opacity: 0.8; }
-.field input[aria-invalid="true"] { border-color: var(--danger); }
+.field > label { font-size: 15px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+.field input:not([type="checkbox"]), .field select, .input { width: 100%; height: 54px; padding: 0 14px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--bg); font-size: 18px; }
+.field input::placeholder, .input::placeholder { color: var(--muted); opacity: 0.8; }
+.field [aria-invalid="true"] { border-color: var(--danger); }
+.showpw { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 15px; color: var(--muted); cursor: pointer; }
+.showpw input { width: 18px; height: 18px; accent-color: var(--accent); }
 .err { margin: 6px 0 0; font-size: 15px; font-weight: 500; color: var(--danger); }
 .actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
 .btn { height: 54px; padding: 0 28px; border: 0; border-radius: 12px; background: var(--accent); color: var(--on-accent); font-weight: 700; font-size: 18px; cursor: pointer; }
 .btn:hover { filter: brightness(0.94); }
 .btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.7; cursor: progress; }
+.btn.small { height: 48px; padding: 0 20px; font-size: 16px; }
 
 /* Notices */
 .notice { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 14px 18px; border: 1px dashed var(--line); border-radius: 16px; color: var(--muted); font-size: 16px; }
-.notice span { flex: 1 1 260px; min-width: 0; }
+.notice span { flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; }
 .notice.error { border-style: solid; border-color: var(--danger-line); background: var(--danger-bg); color: var(--danger); font-weight: 600; }
+.notice.ok { border-style: solid; border-color: var(--line); background: var(--card); color: var(--ink); font-weight: 600; }
 .link-btn { background: none; border: 0; padding: 8px 4px; font-weight: 700; font-size: 16px; color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 
 /* Owner cards */
@@ -119,6 +138,7 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
 .owner-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 14px; }
 .owner-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 16px; color: var(--muted); }
 .pill { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px; font-size: 15px; font-weight: 700; background: var(--danger-bg); color: var(--danger); }
+.pill.role { background: var(--chip); color: var(--muted); font-size: 14px; letter-spacing: 0.04em; text-transform: uppercase; }
 .bar { height: 6px; margin-top: 12px; border-radius: 999px; background: var(--chip); overflow: hidden; }
 .bar > i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
 
@@ -144,8 +164,19 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
 .row-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
 .ghost { background: none; border: 0; border-radius: 8px; padding: 8px 10px; font-size: 15px; font-weight: 600; color: var(--muted); cursor: pointer; }
 .ghost:hover { color: var(--danger); background: var(--chip); }
+.ghost.neutral:hover { color: var(--ink); }
 .ghost.solid { background: var(--danger); color: var(--card); }
 .ghost.solid:hover { color: var(--card); filter: brightness(0.93); }
+
+/* Users */
+.urow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 14px; align-items: center; padding: 14px 0; }
+.urow + .urow { border-top: 1px solid var(--line); }
+.uname { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 19px; font-weight: 600; overflow-wrap: anywhere; min-width: 0; }
+.uhandle { font-size: 16px; font-weight: 400; color: var(--muted); }
+.reset-form { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.reset-form .input { flex: 1 1 200px; width: auto; height: 48px; }
+.reset-form .err { flex: 1 1 100%; margin: 0; }
+#user-list { margin-top: 8px; }
 
 .empty { text-align: center; padding: 36px 20px; color: var(--muted); border: 1.5px dashed var(--line); border-radius: 16px; }
 .empty strong { display: block; font-family: var(--font-display); font-size: 22px; color: var(--ink); margin-bottom: 4px; }
@@ -155,14 +186,14 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
 
 @media (max-width: 520px) {
   .card { padding: 16px; }
-  .form-grid { grid-template-columns: minmax(0, 1fr); }
+  .form-grid, .form-grid.two { grid-template-columns: minmax(0, 1fr); }
   .actions .btn { width: 100%; }
   .item { grid-template-columns: auto minmax(0, 1fr); }
   .row-actions { grid-column: 2; justify-content: flex-start; margin-top: -4px; }
   .stat { padding: 12px 12px 14px; }
+  .urow { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
-[hidden] { display: none !important; }
 </style>
 </head>
 <body>
@@ -173,43 +204,143 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
     <p class="lede">Every action agreed in a meeting, with a named owner and a due date, so nothing gets forgotten.</p>
   </header>
 
-  <section class="stats" aria-label="Summary">
-    <div class="stat"><span class="label">Open</span><span class="num" id="n-open">0</span></div>
-    <div class="stat"><span class="label">Done</span><span class="num" id="n-done">0</span></div>
-    <div class="stat" id="stat-overdue"><span class="label">Overdue</span><span class="num" id="n-overdue">0</span></div>
-  </section>
+  <p class="foot" id="boot">Checking your sign-in…</p>
 
-  <section class="card" aria-labelledby="add-title">
-    <h2 id="add-title">Add an action</h2>
-    <form id="add-form" class="form-grid" novalidate>
-      <div class="field full">
-        <label for="f-text">What needs doing?</label>
-        <input id="f-text" name="text" type="text" maxlength="200" autocomplete="off" placeholder="e.g. Send the revised quote to the client" aria-describedby="e-text">
-        <p class="err" id="e-text" hidden></p>
+  <!-- Signed out -->
+  <section class="card login" id="login-view" aria-labelledby="login-title" hidden>
+    <h2 id="login-title">Sign in</h2>
+    <p class="hint">Use the username and password you were given. Ask an admin if you don't have an account yet.</p>
+    <form id="login-form" class="form-grid one" novalidate>
+      <div class="field">
+        <label for="l-user">Username</label>
+        <input id="l-user" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="60" placeholder="e.g. priya">
       </div>
       <div class="field">
-        <label for="f-owner">Owner</label>
-        <input id="f-owner" name="owner" type="text" maxlength="60" list="owners" autocomplete="off" placeholder="Who is responsible?" aria-describedby="e-owner">
-        <datalist id="owners"></datalist>
-        <p class="err" id="e-owner" hidden></p>
+        <label for="l-pass">Password</label>
+        <input id="l-pass" type="password" autocomplete="current-password" maxlength="72">
+        <label class="showpw" for="l-show"><input type="checkbox" id="l-show"> Show password</label>
+        <p class="err" id="e-login" role="alert" hidden></p>
       </div>
-      <div class="field">
-        <label for="f-due">Due date</label>
-        <input id="f-due" name="due" type="date" aria-describedby="e-due">
-        <p class="err" id="e-due" hidden></p>
-      </div>
-      <div class="actions"><button class="btn" type="submit" id="add-btn">Add action</button></div>
+      <div class="actions"><button class="btn" type="submit" id="login-btn">Sign in</button></div>
     </form>
   </section>
 
-  <div class="notice error" id="status" role="alert" hidden>
-    <span id="status-text"></span>
-    <button class="link-btn" type="button" id="retry">Try again</button>
+  <!-- Signed in -->
+  <div class="stack" id="app-view" hidden>
+    <div class="userbar">
+      <div class="who" id="who"></div>
+      <nav class="nav" aria-label="Sections">
+        <button type="button" class="tab" id="tab-actions">Actions</button>
+        <button type="button" class="tab" id="tab-users" hidden>Users</button>
+        <button type="button" class="tab" id="tab-account">Account</button>
+        <button type="button" class="ghost neutral" id="signout">Sign out</button>
+      </nav>
+    </div>
+
+    <div class="notice error" id="status" role="alert" hidden>
+      <span id="status-text"></span>
+      <button class="link-btn" type="button" id="retry" hidden>Try again</button>
+    </div>
+    <div class="notice ok" id="flash" role="status" hidden><span id="flash-text"></span></div>
+
+    <!-- Actions -->
+    <section class="stack" id="view-actions" aria-label="Actions">
+      <div class="stats" aria-label="Summary">
+        <div class="stat"><span class="label">Open</span><span class="num" id="n-open">0</span></div>
+        <div class="stat"><span class="label">Done</span><span class="num" id="n-done">0</span></div>
+        <div class="stat" id="stat-overdue"><span class="label">Overdue</span><span class="num" id="n-overdue">0</span></div>
+      </div>
+
+      <section class="card" aria-labelledby="add-title">
+        <h2 id="add-title">Add an action</h2>
+        <form id="add-form" class="form-grid" novalidate>
+          <div class="field full">
+            <label for="f-text">What needs doing?</label>
+            <input id="f-text" name="text" type="text" maxlength="200" autocomplete="off" placeholder="e.g. Send the revised quote to the client" aria-describedby="e-text">
+            <p class="err" id="e-text" hidden></p>
+          </div>
+          <div class="field">
+            <label for="f-owner">Owner</label>
+            <select id="f-owner" name="owner" aria-describedby="e-owner"></select>
+            <p class="err" id="e-owner" hidden></p>
+          </div>
+          <div class="field">
+            <label for="f-due">Due date</label>
+            <input id="f-due" name="due" type="date" aria-describedby="e-due">
+            <p class="err" id="e-due" hidden></p>
+          </div>
+          <div class="actions"><button class="btn" type="submit" id="add-btn">Add action</button></div>
+        </form>
+      </section>
+
+      <section class="groups" id="groups" aria-label="Actions by owner"></section>
+    </section>
+
+    <!-- Users (admins only) -->
+    <section class="stack" id="view-users" aria-label="Users" hidden>
+      <section class="card" aria-labelledby="adduser-title">
+        <h2 id="adduser-title">Add a user</h2>
+        <p class="hint">Set an initial password and share it with them. They can change it from the Account tab.</p>
+        <form id="user-form" class="form-grid two" novalidate>
+          <div class="field">
+            <label for="u-username">Username</label>
+            <input id="u-username" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="30" placeholder="e.g. sam">
+            <p class="err" id="e-u-username" hidden></p>
+          </div>
+          <div class="field">
+            <label for="u-name">Display name</label>
+            <input id="u-name" type="text" autocomplete="off" maxlength="60" placeholder="e.g. Sam">
+            <p class="err" id="e-u-name" hidden></p>
+          </div>
+          <div class="field">
+            <label for="u-pass">Initial password</label>
+            <input id="u-pass" type="password" autocomplete="new-password" maxlength="72" placeholder="At least 6 characters">
+            <label class="showpw" for="u-show"><input type="checkbox" id="u-show"> Show password</label>
+            <p class="err" id="e-u-pass" hidden></p>
+          </div>
+          <div class="field">
+            <label for="u-role">Role</label>
+            <select id="u-role">
+              <option value="member">Member</option>
+              <option value="admin">Admin (can manage users)</option>
+            </select>
+          </div>
+          <div class="actions"><button class="btn" type="submit" id="user-btn">Add user</button></div>
+        </form>
+      </section>
+
+      <section class="card" aria-labelledby="users-title">
+        <div class="owner-head"><h2 id="users-title">Users</h2><span class="owner-meta" id="user-count"></span></div>
+        <div id="user-list"></div>
+      </section>
+    </section>
+
+    <!-- Account -->
+    <section class="stack" id="view-account" aria-label="Account" hidden>
+      <section class="card" aria-labelledby="pw-title">
+        <h2 id="pw-title">Change your password</h2>
+        <p class="hint">Choose a password only you know. Replace the starting password you were given.</p>
+        <form id="pw-form" class="form-grid two" novalidate>
+          <div class="field">
+            <label for="a-new">New password</label>
+            <input id="a-new" type="password" autocomplete="new-password" maxlength="72" placeholder="At least 6 characters">
+            <p class="err" id="e-a-new" hidden></p>
+          </div>
+          <div class="field">
+            <label for="a-confirm">Confirm new password</label>
+            <input id="a-confirm" type="password" autocomplete="new-password" maxlength="72">
+            <p class="err" id="e-a-confirm" hidden></p>
+          </div>
+          <div class="field full">
+            <label class="showpw" for="a-show"><input type="checkbox" id="a-show"> Show passwords</label>
+          </div>
+          <div class="actions"><button class="btn" type="submit" id="pw-btn">Change password</button></div>
+        </form>
+      </section>
+    </section>
+
+    <p class="foot" id="store-note"></p>
   </div>
-
-  <section class="groups" id="groups" aria-label="Actions by owner"></section>
-
-  <p class="foot" id="store-note">Connecting to live data…</p>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
@@ -217,13 +348,18 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
 (function () {
   var SUPABASE_URL = 'https://hpljkvfhnnvjvpfbmukg.supabase.co';
   var SUPABASE_KEY = 'sb_publishable_HHMk0RRE0LKGbf1Yw9sxyw_Ff8MCfhY';
+  // Supabase Auth needs an email, so each username maps to an internal address that never receives mail.
+  var EMAIL_DOMAIN = 'actiontracker.example';
+  var MIN_PASSWORD = 6;
   var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-  var items = [];
+  var items = [], profiles = [], me = null;
+  var currentUid = null, booted = false, view = 'actions';
   var loadState = 'loading'; // loading | ready | error
-  var live = false;
+  var live = false, channel = null;
   var confirmId = null, confirmTimer = null, focusKey = null;
+  var resetId = null, resetErr = '';
 
   function pad(n) { return String(n).padStart(2, '0'); }
   function iso(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
@@ -233,13 +369,13 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
   function daysBetween(a, b) { return Math.round((parse(b) - parse(a)) / 86400000); }
   function $(id) { return document.getElementById(id); }
   function errText(e) { return (e && e.message) ? e.message : 'Check your connection and try again.'; }
+  function isAdmin() { return !!(me && me.role === 'admin'); }
 
   function addKid(parent, kid) {
     if (kid == null || kid === false) return;
     if (Array.isArray(kid)) { kid.forEach(function (k) { addKid(parent, k); }); return; }
     parent.append(kid.nodeType ? kid : document.createTextNode(kid));
   }
-
   function h(tag, attrs) {
     var e = document.createElement(tag);
     if (attrs) {
@@ -255,51 +391,210 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
     return e;
   }
 
-  /* Status banner and connection note */
-  function setError(msg) {
+  /* Notices */
+  function setError(msg, retryable) {
     $('status').hidden = !msg;
     $('status-text').textContent = msg || '';
+    $('retry').hidden = !(msg && retryable);
+  }
+  function setFlash(msg) {
+    $('flash').hidden = !msg;
+    $('flash-text').textContent = msg || '';
+  }
+  function fieldErr(inputId, errId, msg) {
+    var input = $(inputId), err = $(errId);
+    err.hidden = !msg;
+    err.textContent = msg || '';
+    if (msg) input.setAttribute('aria-invalid', 'true'); else input.removeAttribute('aria-invalid');
   }
   function renderNote() {
     var note = $('store-note');
     note.className = 'foot' + (loadState === 'error' ? ' warn' : '');
     if (loadState === 'loading') note.textContent = 'Connecting to live data…';
     else if (loadState === 'error') note.textContent = 'Not connected. Changes cannot be saved until the connection returns.';
-    else if (live) note.textContent = 'Live. Everyone with the link sees the same list, and changes appear straight away.';
+    else if (live) note.textContent = 'Live. Everyone signed in sees the same list, and changes appear straight away.';
     else note.textContent = 'Reconnecting to live updates… your list is shown as of the last refresh.';
+  }
+
+  function showScreen(name) {
+    $('boot').hidden = name !== 'boot';
+    $('login-view').hidden = name !== 'login';
+    $('app-view').hidden = name !== 'app';
   }
 
   /* Supabase */
   if (!window.supabase || !window.supabase.createClient) {
-    loadState = 'error';
-    setError('Could not load the Supabase library. Check your connection and reload the page.');
-    $('retry').hidden = true;
-    renderNote();
-    render();
+    showScreen('boot');
+    $('boot').className = 'foot warn';
+    $('boot').textContent = 'Could not load the Supabase library. Check your connection and reload the page.';
     return;
   }
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  function upsert(row) {
-    var i = items.findIndex(function (x) { return x.id === row.id; });
-    if (i >= 0) items[i] = row; else items.push(row);
+  function upsertBy(list, row) {
+    var i = list.findIndex(function (x) { return x.id === row.id; });
+    if (i >= 0) list[i] = row; else list.push(row);
+  }
+  function pname(id) {
+    var p = profiles.find(function (x) { return x.id === id; });
+    return p ? p.display_name : 'Unknown user';
+  }
+
+  async function loadProfiles() {
+    var r = await sb.from('profiles').select('id,username,display_name,role,created_at').order('display_name');
+    if (r.error) throw r.error;
+    profiles = r.data || [];
+    me = profiles.find(function (p) { return p.id === currentUid; }) || null;
   }
 
   async function fetchAll() {
     try {
-      var r = await sb.from('actions').select('id,text,owner,due,done,created_at').order('due').order('created_at');
+      var r = await sb.from('actions').select('id,text,owner_id,due,done,created_at').order('due').order('created_at');
       if (r.error) throw r.error;
       items = r.data || [];
       loadState = 'ready';
       setError('');
     } catch (e) {
       loadState = items.length ? 'ready' : 'error';
-      setError('Could not load actions. ' + errText(e));
+      setError('Could not load actions. ' + errText(e), true);
     }
     renderNote();
-    render();
+    renderAll();
   }
 
+  /* Session handling */
+  async function onSignedIn(uid, session) {
+    currentUid = uid;
+    showScreen('app');
+    loadState = 'loading'; items = []; profiles = []; me = null;
+    setError(''); setFlash(''); renderNote(); showView('actions'); renderAll();
+    try {
+      await loadProfiles();
+    } catch (e) {
+      loadState = 'error';
+      setError('Could not load your profile. ' + errText(e), true);
+      renderNote(); renderAll();
+      return;
+    }
+    if (currentUid !== uid) return;
+    if (!me) {
+      loadState = 'error';
+      setError('Your sign-in has no profile in this app. Ask an admin to set you up.', false);
+      renderNote(); renderAll();
+      return;
+    }
+    subscribe(session);
+    renderAll();
+    await fetchAll();
+  }
+
+  function onSignedOut() {
+    currentUid = null;
+    unsubscribe();
+    items = []; profiles = []; me = null; resetId = null; confirmId = null; view = 'actions';
+    $('groups').textContent = ''; $('user-list').textContent = ''; $('who').textContent = '';
+    setError(''); setFlash('');
+    ['f-text', 'f-due', 'u-username', 'u-name', 'u-pass', 'a-new', 'a-confirm', 'l-pass'].forEach(function (id) { $(id).value = ''; });
+    showScreen('login');
+    fieldErr('l-pass', 'e-login', '');
+  }
+
+  function handleSession(session) {
+    var uid = session && session.user ? session.user.id : null;
+    if (booted && uid === currentUid) return;
+    booted = true;
+    if (uid) onSignedIn(uid, session); else onSignedOut();
+  }
+
+  sb.auth.onAuthStateChange(function (event, session) {
+    // Defer: calling Supabase inside this callback can deadlock the auth client.
+    setTimeout(function () { handleSession(session); }, 0);
+  });
+  setTimeout(async function () {
+    if (booted) return;
+    try { var r = await sb.auth.getSession(); handleSession(r && r.data ? r.data.session : null); }
+    catch (e) { handleSession(null); }
+  }, 2500);
+
+  /* Realtime */
+  function onActionChange(p) {
+    if (p.eventType === 'DELETE') {
+      var id = p.old && p.old.id;
+      items = items.filter(function (x) { return x.id !== id; });
+    } else if (p.new) {
+      upsertBy(items, p.new);
+    }
+    renderAll();
+  }
+  function onProfileChange(p) {
+    if (p.eventType === 'DELETE') {
+      var id = p.old && p.old.id;
+      profiles = profiles.filter(function (x) { return x.id !== id; });
+    } else if (p.new) {
+      upsertBy(profiles, p.new);
+    }
+    me = profiles.find(function (x) { return x.id === currentUid; }) || me;
+    renderAll();
+  }
+  function subscribe(session) {
+    unsubscribe();
+    try { if (session && session.access_token && sb.realtime && sb.realtime.setAuth) sb.realtime.setAuth(session.access_token); } catch (e) {}
+    var first = true;
+    channel = sb.channel('live-' + currentUid)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'actions' }, onActionChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, onProfileChange)
+      .subscribe(function (status) {
+        live = status === 'SUBSCRIBED';
+        renderNote();
+        if (live && !first) { loadProfiles().then(renderAll, function () {}); fetchAll(); } // catch up after a gap
+        if (live) first = false;
+      });
+  }
+  function unsubscribe() {
+    if (channel) { try { sb.removeChannel(channel); } catch (e) {} channel = null; }
+    live = false;
+  }
+
+  /* Views */
+  function showView(v) {
+    if (v === 'users' && !isAdmin() && me) v = 'actions';
+    view = v;
+    ['actions', 'users', 'account'].forEach(function (n) {
+      $('view-' + n).hidden = n !== v;
+      var t = $('tab-' + n);
+      if (n === v) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current');
+    });
+    if (v !== 'users') { resetId = null; resetErr = ''; }
+    setFlash('');
+    if (v === 'users') renderUsers();
+  }
+  $('tab-actions').addEventListener('click', function () { showView('actions'); });
+  $('tab-users').addEventListener('click', function () { showView('users'); });
+  $('tab-account').addEventListener('click', function () { showView('account'); });
+
+  function renderAll() {
+    renderChrome();
+    render();
+    if (view === 'users') renderUsers();
+  }
+
+  function renderChrome() {
+    var who = $('who');
+    who.textContent = '';
+    if (me) who.append('Signed in as ', h('strong', null, me.display_name), isAdmin() ? h('span', { class: 'pill role' }, 'Admin') : null);
+    $('tab-users').hidden = !isAdmin();
+    if (view === 'users' && me && !isAdmin()) showView('actions');
+
+    var sel = $('f-owner');
+    var cur = sel.value;
+    sel.textContent = '';
+    sel.append(h('option', { value: '' }, profiles.length ? 'Choose an owner' : 'Loading users…'));
+    profiles.slice().sort(function (a, b) { return a.display_name.localeCompare(b.display_name, 'en-GB'); })
+      .forEach(function (p) { sel.append(h('option', { value: p.id }, p.display_name)); });
+    if (cur && profiles.some(function (p) { return p.id === cur; })) sel.value = cur;
+  }
+
+  /* Actions */
   async function toggle(id) {
     var it = items.find(function (x) { return x.id === id; });
     if (!it) return;
@@ -394,15 +689,10 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
 
     var groups = new Map();
     items.forEach(function (it) {
-      var k = it.owner.toLowerCase();
-      if (!groups.has(k)) groups.set(k, { name: it.owner, list: [] });
-      groups.get(k).list.push(it);
+      if (!groups.has(it.owner_id)) groups.set(it.owner_id, { name: pname(it.owner_id), list: [] });
+      groups.get(it.owner_id).list.push(it);
     });
     var sorted = Array.from(groups.values()).sort(function (a, b) { return a.name.localeCompare(b.name, 'en-GB'); });
-
-    var dl = $('owners');
-    dl.textContent = '';
-    sorted.forEach(function (g) { dl.append(h('option', { value: g.name })); });
 
     var host = $('groups');
     host.textContent = '';
@@ -437,32 +727,168 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
     }
   }
 
-  /* Form */
-  function showErr(field, msg) {
-    var input = $('f-' + field), err = $('e-' + field);
-    err.hidden = !msg;
-    err.textContent = msg || '';
-    if (msg) input.setAttribute('aria-invalid', 'true'); else input.removeAttribute('aria-invalid');
+  /* Users (admin) */
+  function renderUsers() {
+    var host = $('user-list');
+    host.textContent = '';
+    var list = profiles.slice().sort(function (a, b) { return a.display_name.localeCompare(b.display_name, 'en-GB'); });
+    $('user-count').textContent = list.length + (list.length === 1 ? ' user' : ' users');
+    list.forEach(function (p) {
+      var isMe = me && p.id === me.id;
+      var row = h('div', { class: 'urow' },
+        h('div', { class: 'uname' },
+          p.display_name,
+          h('span', { class: 'uhandle' }, '@' + p.username + (isMe ? ' · you' : '')),
+          p.role === 'admin' ? h('span', { class: 'pill role' }, 'Admin') : null),
+        isMe ? null : h('button', { type: 'button', class: 'ghost neutral', 'aria-label': 'Reset password for ' + p.display_name, onclick: function () { resetId = p.id; resetErr = ''; renderUsers(); var i = $('rp-input'); if (i) i.focus(); } }, 'Reset password')
+      );
+      if (resetId === p.id) {
+        var input = h('input', { class: 'input', id: 'rp-input', type: 'password', autocomplete: 'new-password', maxlength: '72', placeholder: 'New password, at least ' + MIN_PASSWORD + ' characters', 'aria-label': 'New password for ' + p.display_name });
+        if (resetErr) input.setAttribute('aria-invalid', 'true');
+        row.append(h('form', { class: 'reset-form', onsubmit: function (ev) { ev.preventDefault(); doReset(p, input.value, ev.target); } },
+          input,
+          h('button', { type: 'submit', class: 'btn small' }, 'Set password'),
+          h('button', { type: 'button', class: 'ghost neutral', onclick: function () { resetId = null; resetErr = ''; renderUsers(); } }, 'Cancel'),
+          resetErr ? h('p', { class: 'err', role: 'alert' }, resetErr) : null
+        ));
+      }
+      host.append(row);
+    });
   }
 
+  async function doReset(p, pw, form) {
+    if (!pw) { resetErr = 'Enter a new password.'; renderUsers(); var i0 = $('rp-input'); if (i0) i0.focus(); return; }
+    if (pw.length < MIN_PASSWORD) { resetErr = 'Password must be at least ' + MIN_PASSWORD + ' characters.'; renderUsers(); var i1 = $('rp-input'); if (i1) i1.focus(); return; }
+    var btn = form.querySelector('button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+    var r = await sb.rpc('admin_reset_password', { p_user_id: p.id, p_password: pw });
+    if (r.error) { resetErr = errText(r.error); renderUsers(); return; }
+    resetId = null; resetErr = '';
+    renderUsers();
+    setFlash('Password reset for ' + p.display_name + '. They have been signed out and can sign in with the new password.');
+  }
+
+  $('user-form').addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    var username = $('u-username').value.trim().toLowerCase();
+    var name = $('u-name').value.trim();
+    var pw = $('u-pass').value;
+    var role = $('u-role').value;
+    fieldErr('u-username', 'e-u-username', !username ? 'Enter a username.' : /^[a-z0-9._-]{2,30}$/.test(username) ? '' : 'Use 2 to 30 letters, numbers, dots, dashes or underscores.');
+    fieldErr('u-name', 'e-u-name', name ? '' : 'Enter a display name.');
+    fieldErr('u-pass', 'e-u-pass', !pw ? 'Set an initial password.' : pw.length < MIN_PASSWORD ? 'Password must be at least ' + MIN_PASSWORD + ' characters.' : '');
+    var bad = ['u-username', 'u-name', 'u-pass'].find(function (id) { return $(id).getAttribute('aria-invalid') === 'true'; });
+    if (bad) { $(bad).focus(); return; }
+    setFlash('');
+    var btn = $('user-btn');
+    btn.disabled = true; btn.textContent = 'Adding…';
+    var r = await sb.rpc('admin_create_user', { p_username: username, p_display_name: name, p_password: pw, p_role: role });
+    btn.disabled = false; btn.textContent = 'Add user';
+    if (r.error) {
+      var msg = errText(r.error);
+      if (/username/i.test(msg)) fieldErr('u-username', 'e-u-username', msg); else setError('Could not add the user. ' + msg);
+      return;
+    }
+    setError('');
+    if (r.data) { upsertBy(profiles, r.data); }
+    $('user-form').reset();
+    ['u-username', 'u-name', 'u-pass'].forEach(function (id) { fieldErr(id, 'e-' + id, ''); });
+    $('u-pass').type = 'password'; $('u-show').checked = false;
+    renderAll();
+    setFlash('Added ' + name + '. They can sign in as ' + username + ' with the password you set.');
+    $('u-username').focus();
+  });
+  ['u-username', 'u-name', 'u-pass'].forEach(function (id) {
+    $(id).addEventListener('input', function () { fieldErr(id, 'e-' + id, ''); });
+  });
+
+  /* Account */
+  $('pw-form').addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    var pw = $('a-new').value, again = $('a-confirm').value;
+    fieldErr('a-new', 'e-a-new', !pw ? 'Enter a new password.' : pw.length < MIN_PASSWORD ? 'Password must be at least ' + MIN_PASSWORD + ' characters.' : '');
+    fieldErr('a-confirm', 'e-a-confirm', !again ? 'Type the new password again.' : (pw && again !== pw) ? 'The two passwords do not match.' : '');
+    var bad = ['a-new', 'a-confirm'].find(function (id) { return $(id).getAttribute('aria-invalid') === 'true'; });
+    if (bad) { $(bad).focus(); return; }
+    setFlash('');
+    var btn = $('pw-btn');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    var r = await sb.auth.updateUser({ password: pw });
+    btn.disabled = false; btn.textContent = 'Change password';
+    if (r.error) { setError('Could not change your password. ' + errText(r.error)); return; }
+    setError('');
+    $('pw-form').reset();
+    $('a-new').type = 'password'; $('a-confirm').type = 'password'; $('a-show').checked = false;
+    setFlash('Your password has been changed.');
+  });
+  ['a-new', 'a-confirm'].forEach(function (id) {
+    $(id).addEventListener('input', function () { fieldErr(id, 'e-' + id, ''); });
+  });
+
+  /* Show-password toggles */
+  function bindShow(checkId, inputIds) {
+    $(checkId).addEventListener('change', function (ev) {
+      inputIds.forEach(function (id) { $(id).type = ev.target.checked ? 'text' : 'password'; });
+    });
+  }
+  bindShow('l-show', ['l-pass']);
+  bindShow('u-show', ['u-pass']);
+  bindShow('a-show', ['a-new', 'a-confirm']);
+
+  /* Sign in and out */
+  $('login-form').addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    var username = $('l-user').value.trim().toLowerCase().split('@')[0];
+    var pw = $('l-pass').value;
+    if (!username) { fieldErr('l-pass', 'e-login', 'Enter your username.'); $('l-user').focus(); return; }
+    if (!pw) { fieldErr('l-pass', 'e-login', 'Enter your password.'); $('l-pass').focus(); return; }
+    fieldErr('l-pass', 'e-login', '');
+    var btn = $('login-btn');
+    btn.disabled = true; btn.textContent = 'Signing in…';
+    var r = await sb.auth.signInWithPassword({ email: username + '@' + EMAIL_DOMAIN, password: pw });
+    btn.disabled = false; btn.textContent = 'Sign in';
+    if (r.error) {
+      var bad = r.error.status === 400 || /invalid/i.test(r.error.message || '');
+      fieldErr('l-pass', 'e-login', bad ? 'Username or password is incorrect.' : 'Could not sign in. ' + errText(r.error));
+      $('l-pass').value = '';
+      $('l-pass').focus();
+      return;
+    }
+    $('l-pass').value = '';
+    $('l-show').checked = false; $('l-pass').type = 'password';
+    // onAuthStateChange takes it from here.
+  });
+  $('l-user').addEventListener('input', function () { fieldErr('l-pass', 'e-login', ''); });
+  $('l-pass').addEventListener('input', function () { fieldErr('l-pass', 'e-login', ''); });
+
+  $('signout').addEventListener('click', async function () {
+    try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
+    if (currentUid) onSignedOut();
+  });
+  $('retry').addEventListener('click', function () {
+    setError('');
+    if (!me && currentUid) { onSignedIn(currentUid, null); return; }
+    loadState = items.length ? 'ready' : 'loading';
+    renderNote(); renderAll(); fetchAll();
+  });
+
+  /* Actions form */
   $('add-form').addEventListener('submit', async function (ev) {
     ev.preventDefault();
     var text = $('f-text').value.trim();
-    var owner = $('f-owner').value.trim().replace(/\s+/g, ' ');
+    var owner = $('f-owner').value;
     var due = $('f-due').value;
-    showErr('text', text ? '' : 'Describe the action.');
-    showErr('owner', owner ? '' : 'Choose an owner. Every action needs one person responsible.');
-    showErr('due', due ? '' : 'Pick a due date.');
+    fieldErr('f-text', 'e-text', text ? '' : 'Describe the action.');
+    fieldErr('f-owner', 'e-owner', owner ? '' : 'Choose an owner. Every action needs one person responsible.');
+    fieldErr('f-due', 'e-due', due ? '' : 'Pick a due date.');
     if (!text) { $('f-text').focus(); return; }
     if (!owner) { $('f-owner').focus(); return; }
     if (!due) { $('f-due').focus(); return; }
-    var existing = items.find(function (i) { return i.owner.toLowerCase() === owner.toLowerCase(); });
-    if (existing) owner = existing.owner;
 
     var btn = $('add-btn');
     btn.disabled = true;
     btn.textContent = 'Adding…';
-    var r = await sb.from('actions').insert({ text: text, owner: owner, due: due }).select('id,text,owner,due,done,created_at').single();
+    var r = await sb.from('actions').insert({ text: text, owner_id: owner, due: due }).select('id,text,owner_id,due,done,created_at').single();
     btn.disabled = false;
     btn.textContent = 'Add action';
     if (r.error) {
@@ -470,16 +896,15 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
       return;
     }
     setError('');
-    upsert(r.data);
+    upsertBy(items, r.data);
     $('add-form').reset();
-    ['text', 'owner', 'due'].forEach(function (f) { showErr(f, ''); });
-    render();
+    ['f-text', 'f-owner', 'f-due'].forEach(function (id) { fieldErr(id, 'e-' + id.slice(2), ''); });
+    renderAll();
     $('f-text').focus();
   });
-  ['text', 'owner', 'due'].forEach(function (f) {
-    $('f-' + f).addEventListener('input', function () { showErr(f, ''); });
+  ['f-text', 'f-owner', 'f-due'].forEach(function (id) {
+    $(id).addEventListener('input', function () { fieldErr(id, 'e-' + id.slice(2), ''); });
   });
-  $('retry').addEventListener('click', function () { loadState = items.length ? 'ready' : 'loading'; renderNote(); render(); fetchAll(); });
 
   /* Date header, and a refresh of overdue highlighting if the page stays open past midnight */
   function setDateLabel() { var n = new Date(); $('today-label').textContent = DAYS[n.getDay()] + ' ' + fmt(iso(n)); }
@@ -489,32 +914,12 @@ h1 { margin: 0; font-family: var(--font-display); font-size: clamp(34px, 8vw, 46
     if (today() === shownDay) return;
     shownDay = today();
     setDateLabel();
-    render();
+    if (currentUid) render();
   }, 60000);
 
-  /* Realtime: keep every open page in step with the table */
-  var firstSub = true;
-  sb.channel('actions-live')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'actions' }, function (p) {
-      if (p.eventType === 'DELETE') {
-        var id = p.old && p.old.id;
-        items = items.filter(function (x) { return x.id !== id; });
-      } else if (p.new) {
-        upsert(p.new);
-      }
-      render();
-    })
-    .subscribe(function (status) {
-      live = status === 'SUBSCRIBED';
-      renderNote();
-      if (live && !firstSub) fetchAll(); // catch anything missed while disconnected
-      if (live) firstSub = false;
-    });
-
-  renderNote();
-  render();
-  fetchAll();
+  showScreen('boot');
 })();
+
 </script>
 </body>
 </html>
